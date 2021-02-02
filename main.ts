@@ -14,11 +14,13 @@
 
 const rpcIdRewards = 'rewards_js';
 const rpcIdFindMatch = 'find_match_js';
+const rpcIdListMatches = 'list_matches_js';
+
 
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
     initializer.registerRpc(rpcIdRewards, rpcReward);
-
     initializer.registerRpc(rpcIdFindMatch, rpcFindMatch);
+    initializer.registerRpc(rpcIdListMatches, rpcListMatches);
 
     initializer.registerMatch(moduleName, {
         matchInit,
@@ -30,4 +32,5 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     });
 
     logger.info('JavaScript logic loaded.');
+
 }

@@ -168,7 +168,7 @@ let matchJoin: nkruntime.MatchJoinFunction = function(ctx: nkruntime.Context, lo
         }
     }
 
-    const label = s.label as MatchLabel;
+    // const label = s.label as MatchLabel;
 
     // Check if match was open to new players, but should now be closed.
     if (Object.keys(s.presences).length >= 2 && s.label.open != 0) {

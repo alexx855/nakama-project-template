@@ -17,9 +17,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"time"
+
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"time"
 )
 
 var (
@@ -39,6 +40,8 @@ const (
 //noinspection GoUnusedExportedFunction
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	initStart := time.Now()
+
+	logger.Info("ALEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
 
 	marshaler := &jsonpb.Marshaler{
 		EnumsAsInts: true,
