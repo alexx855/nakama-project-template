@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"time"
 
+	firebase "firebase.google.com/go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/runtime"
 )
@@ -41,7 +42,13 @@ const (
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	initStart := time.Now()
 
-	logger.Info("ALEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+	app, err := firebase.NewApp(context.Background(), nil)
+	if err != nil {
+		logger.Info("error initializing app: %v\n", err)
+		return err
+	}
+
+	logger.Info("Firebase app ready", app)
 
 	marshaler := &jsonpb.Marshaler{
 		EnumsAsInts: true,
@@ -54,7 +61,7 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
- 	if err := initializer.RegisterRpc(rpcIdRewards, rpcRewards); err != nil {
+	if err := initializer.RegisterRpc(rpcIdRewards, rpcRewards); err != nil {
 		return err
 	}
 

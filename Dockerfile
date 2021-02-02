@@ -7,6 +7,7 @@ ENV GOPRIVATE "github.com/heroiclabs/nakama-project-template"
 WORKDIR /backend
 COPY . .
 
+# RUN go mod vendor
 RUN go build --trimpath --mod=vendor --buildmode=plugin -o ./backend.so
 
 FROM heroiclabs/nakama:3.0.0
