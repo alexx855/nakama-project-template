@@ -18,12 +18,41 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/heroiclabs/nakama-common/runtime"
 	"time"
+
+	firebase "firebase.google.com/go"
+	"github.com/heroiclabs/nakama-common/runtime"
+	"google.golang.org/api/option"
 )
 
 // Refresh a session token which is close to expiry.
 func rpcRefresh(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
+	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	app, err := firebase.NewApp(context.Background(), nil, opt)
+
+	if err != nil {
+		logger.Info("error initializing app: %v\n", err)
+		return "", errInternalError
+	}
+
+	logger.Info("Firebase admin ready", app)
+
+	client, err := app.Auth(ctx)
+	if err != nil {
+			logger.Error("error getting Auth client: %v\n", err)
+			return "", errInternalError
+	}
+	
+	// TODO: get ID token from header authorization
+	idToken:= "eyJhbGciOiJSUzI1NiIsImtpZCI6IjljZTVlNmY1MzBiNDkwMTFiYjg0YzhmYWExZWM1NGM1MTc1N2I2NTgiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vbWVkaWV2YWxnb2RzLTVjYmMzIiwiYXVkIjoibWVkaWV2YWxnb2RzLTVjYmMzIiwiYXV0aF90aW1lIjoxNjExODQ3NDUyLCJ1c2VyX2lkIjoiSXlxWVNaOGN5T1A1c0NOQndIbElQcFkxYUdFMiIsInN1YiI6Ikl5cVlTWjhjeU9QNXNDTkJ3SGxJUHBZMWFHRTIiLCJpYXQiOjE2MTIzNTU2OTQsImV4cCI6MTYxMjM1OTI5NCwiZW1haWwiOiJpbmZvQGFsZXhwZWRlcnNlbi5uZXQiLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZW1haWwiOlsiaW5mb0BhbGV4cGVkZXJzZW4ubmV0Il19LCJzaWduX2luX3Byb3ZpZGVyIjoicGFzc3dvcmQifX0.TVZXHc8REYe-4SvrRID_tXSJup6dGZhQUQFHwBN1svCjcxrQdekhNJDo5Ti8_Su74JwULLjJLhvK8W8rQhKuiXBSxbOvgO8qdQHD9nnl7l2Fsd87f9NdXTHXavQQ9XWs0X5dMnbmIOCh-nSujsr0XkXpeCUc1FVPMwEM059QxkBqqUJwKDzRO8QKWUaffB_YujY56QF9LNYSA_uBUWi2LpuYREUMd1m8aGwk5fMDMd3uWJ36Dm6nPuG6wZLt6cNsa-GUk4Js4CBfRA8ywnYYTcBiBlzUEu37TLeyezFROm_JCIk90GyzuE-BdTJ91HljjFThY7edUhDoedCfRxkIAg"
+	firebaseIDToken, err := client.VerifyIDToken(ctx, idToken)
+	if err != nil {
+			logger.Error("error verifying ID token: %v\n", err)
+			return "", errInternalError
+	}
+	
+	logger.Info("Verified ID token: %v\n", firebaseIDToken)
+
 	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
 	if !ok {
 		return "", errNoUserIdFound

@@ -21,6 +21,7 @@ import (
 
 	firebase "firebase.google.com/go"
 	"github.com/golang/protobuf/jsonpb"
+	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
@@ -38,6 +39,28 @@ const (
 	rpcIdFindMatch = "find_match"
 )
 
+func SetSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
+	logger.Info("User session contains key-value pairs set the client: %v", in.GetAccount().Vars)
+
+	if in.GetAccount().Vars == nil {
+		in.GetAccount().Vars = map[string]string{}
+	}
+	in.GetAccount().Vars["key_added_in_go"] = "value_added_in_go"
+
+	return in, nil
+}
+
+func AccessSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) error {
+	vars, ok := ctx.Value(runtime.RUNTIME_CTX_VARS).(map[string]string)
+	if !ok {
+		logger.Info("User session does not contain any key-value pairs set")
+		return nil
+	}
+
+	logger.Info("User session contains key-value pairs set by both the client and the before authentication hook: %v", vars)
+	return nil
+}
+
 //noinspection GoUnusedExportedFunction
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	initStart := time.Now()
@@ -48,7 +71,17 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
-	logger.Info("Firebase app ready", app)
+	logger.Info("Firebase admin ready", app)
+
+	if err := initializer.RegisterBeforeAuthenticateCustom(SetSessionVars); err != nil {
+		logger.Error("Unable to register: %v", err)
+		return err
+	}
+
+	if err := initializer.RegisterBeforeGetAccount(AccessSessionVars); err != nil {
+		logger.Error("Unable to register: %v", err)
+		return err
+	}
 
 	marshaler := &jsonpb.Marshaler{
 		EnumsAsInts: true,
