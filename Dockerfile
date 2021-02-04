@@ -1,4 +1,4 @@
-FROM heroiclabs/nakama-pluginbuilder:3.0.0 AS builder
+FROM alexx855/nakama-pluginbuilder:5.0.2 AS builder
 
 ENV GO111MODULE on
 ENV CGO_ENABLED 1
@@ -8,9 +8,10 @@ WORKDIR /backend
 COPY . .
 
 # RUN go mod vendor
+# docker run --rm -w "/builder" -v "${PWD}:/builder" alexx855/nakama-pluginbuilder:5.0.2 mod vendor
 RUN go build --trimpath --mod=vendor --buildmode=plugin -o ./backend.so
 
-FROM heroiclabs/nakama:3.0.0
+FROM alexx855/nakama:5.0.9
 
 COPY --from=builder /backend/backend.so /nakama/data/modules
 COPY --from=builder /backend/service-account.json /nakama/data/modules

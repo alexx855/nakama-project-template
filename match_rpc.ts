@@ -51,6 +51,13 @@ let rpcFindMatch: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logg
             throw error;
         }
     }
+    
+    // try {
+    //     const user =  nk.usersGetId([ctx.userId])[0];
+    // } catch (error) {
+    //     logger.error('Error listing matches: %v', error);
+    //     throw error;
+    // }
 
     let res: RpcFindMatchResponse = { matchIds };
     return JSON.stringify(res);
@@ -61,21 +68,13 @@ let rpcListMatches: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
         throw Error('No user ID in context');
     }
 
-    if (!payload) {
-        throw Error('Expects payload.');
-    }
-
-    let request = {} as RpcFindMatchRequest;
-    try {
-        request = JSON.parse(payload);
-    } catch (error) {
-        logger.error('Error parsing json message: %q', error);
-        throw error;
-    }
+    // if (!payload) {
+    //     throw Error('Expects payload.');
+    // }
 
     let matches: nkruntime.Match[];
     try {
-        const query = `+label.open:1 +label.fast:${request.fast ? 1 : 0}`;
+        const query = "+label.open:1";
         matches = nk.matchList(10, true, null, null, 1, query);
     } catch (error) {
         logger.error('Error listing matches: %v', error);

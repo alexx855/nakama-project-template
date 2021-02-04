@@ -73,4 +73,5 @@ interface RpcFindMatchRequest {
 interface RpcFindMatchResponse {
     // One or more matches that fit the user's request.
     matchIds: string[]
+    token?: string
 }
