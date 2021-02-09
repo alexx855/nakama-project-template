@@ -263,6 +263,7 @@ let matchLoop: nkruntime.MatchLoopFunction = function(ctx: nkruntime.Context, lo
         switch (message.opCode) {
             case OpCode.MOVE:
                 logger.debug('Received move message from user: %v', s.marks);
+                logger.debug('message', message);
                 let mark = s.marks[message.sender.userId] ?? null;
                 if (mark === null || s.mark != mark) {
                     // It is not this player's turn.

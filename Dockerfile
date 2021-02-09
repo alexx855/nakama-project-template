@@ -9,7 +9,11 @@ COPY . .
 
 # RUN go mod vendor
 # docker run --rm -w "/builder" -v "${PWD}:/builder" alexx855/nakama-pluginbuilder:5.0.2 mod vendor
+# docker run --rm -w "/builder" -v "${PWD}:/builder" alexx855/nakama-pluginbuilder:5.0.2 mod vendor
 RUN go build --trimpath --mod=vendor --buildmode=plugin -o ./backend.so
+# TODO: build tsc module
+# RUN npm i 
+# RUN npm run tsc
 
 FROM alexx855/nakama:5.0.9
 

@@ -19,10 +19,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/golang/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"math/rand"
 	"time"
+
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama-project-template/api"
@@ -295,6 +296,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			mark := s.marks[message.GetUserId()]
 			if s.mark != mark {
 				// It is not this player's turn.
+				logger.Info("It is not this player's turn.")
 				dispatcher.BroadcastMessage(int64(api.OpCode_OPCODE_REJECTED), nil, []runtime.Presence{message}, nil, true)
 				continue
 			}
@@ -303,11 +305,13 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			err := m.unmarshaler.Unmarshal(bytes.NewReader(message.GetData()), msg)
 			if err != nil {
 				// Client sent bad data.
+				logger.Info("Client sent bad data.")
 				dispatcher.BroadcastMessage(int64(api.OpCode_OPCODE_REJECTED), nil, []runtime.Presence{message}, nil, true)
 				continue
 			}
 			if msg.Position < 0 || msg.Position > 8 || s.board[msg.Position] != api.Mark_MARK_UNSPECIFIED {
 				// Client sent a position outside the board, or one that has already been played.
+				logger.Info(" Client sent a position outside the board, or one that has already been played.")
 				dispatcher.BroadcastMessage(int64(api.OpCode_OPCODE_REJECTED), nil, []runtime.Presence{message}, nil, true)
 				continue
 			}

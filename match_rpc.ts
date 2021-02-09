@@ -38,14 +38,14 @@ let rpcFindMatch: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logg
         throw error;
     }
 
-    let matchIds: string[] = [];
+    let match_ids: string[] = [];
     if (matches.length > 0) {
         // There are one or more ongoing matches the user could join.
-        matchIds = matches.map(m => m.matchId);
+        match_ids = matches.map(m => m.matchId);
     } else {
         // No available matches found, create a new one.
         try {
-            matchIds.push(nk.matchCreate(moduleName, { fast: request.fast }));
+            match_ids.push(nk.matchCreate(moduleName, { fast: request.fast }));
         } catch (error) {
             logger.error('Error creating match: %v', error);
             throw error;
@@ -59,7 +59,7 @@ let rpcFindMatch: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logg
     //     throw error;
     // }
 
-    let res: RpcFindMatchResponse = { matchIds };
+    let res: RpcFindMatchResponse = { match_ids };
     return JSON.stringify(res);
 }
 
@@ -67,6 +67,8 @@ let rpcListMatches: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
     if (!ctx.userId) {
         throw Error('No user ID in context');
     }
+
+    logger.info('ctx.userId', ctx.userId);
 
     // if (!payload) {
     //     throw Error('Expects payload.');
@@ -76,17 +78,18 @@ let rpcListMatches: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
     try {
         const query = "+label.open:1";
         matches = nk.matchList(10, true, null, null, 1, query);
+        logger.info('Matches', matches);
     } catch (error) {
         logger.error('Error listing matches: %v', error);
         throw error;
     }
-
-    let matchIds: string[] = [];
+    
+    let match_ids: string[] = [];
     if (matches.length > 0) {
         // There are one or more ongoing matches the user could join.
-        matchIds = matches.map(m => m.matchId);
+        match_ids = matches.map(m => m.matchId);
     }
 
-    let res: RpcFindMatchResponse = { matchIds };
+    let res: RpcFindMatchResponse = { match_ids };
     return JSON.stringify(res);
 }

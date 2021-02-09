@@ -72,6 +72,6 @@ interface RpcFindMatchRequest {
 // Payload for an RPC response containing match IDs the user can join.
 interface RpcFindMatchResponse {
     // One or more matches that fit the user's request.
-    matchIds: string[]
+    match_ids: string[]
     token?: string
 }
