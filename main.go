@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"time"
 
-	firebase "firebase.google.com/go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -37,6 +36,7 @@ const (
 	rpcIdRefresh   = "refreshes"
 	rpcIdRewards   = "rewards"
 	rpcIdFindMatch = "find_match"
+	rpcIdGetMatch  = "get_match"
 )
 
 func SetSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
@@ -65,13 +65,14 @@ func AccessSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	initStart := time.Now()
 
-	app, err := firebase.NewApp(context.Background(), nil)
-	if err != nil {
-		logger.Info("error initializing app: %v\n", err)
-		return err
-	}
+	// ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	// app, err := firebase.NewApp(ctx, nil, opt)
+	// if err != nil {
+	// 	logger.Info("error initializing app: %v\n", err)
+	// 	return err
+	// }
 
-	logger.Info("Firebase admin ready", app)
+	// logger.Info("Firebase admin ready", app)
 
 	if err := initializer.RegisterBeforeAuthenticateCustom(SetSessionVars); err != nil {
 		logger.Error("Unable to register: %v", err)
@@ -90,6 +91,16 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		AllowUnknownFields: false,
 	}
 
+	// ? maybe this is a good hook for save firestore data in chats, after those were send to the client
+	if err := initializer.RegisterBeforeRt("ChannelJoin", beforeChannelJoin); err != nil {
+		return err
+	}
+
+	// TODO: implement
+	// if err := initializer.RegisterAfterGetAccount(afterGetAccount); err != nil {
+	// 	return err
+	// }
+
 	if err := initializer.RegisterRpc(rpcIdRefresh, rpcRefresh); err != nil {
 		return err
 	}
@@ -99,6 +110,10 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 	}
 
 	if err := initializer.RegisterRpc(rpcIdFindMatch, rpcFindMatch(marshaler, unmarshaler)); err != nil {
+		return err
+	}
+
+	if err := initializer.RegisterRpc(rpcIdGetMatch, rpcGetMatch(marshaler, unmarshaler)); err != nil {
 		return err
 	}
 

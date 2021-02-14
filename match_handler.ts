@@ -35,6 +35,10 @@ interface MatchLabel {
     fast: number
 }
 
+interface Match extends  nkruntime.Match {
+    label?: string
+}
+
 interface State {
     // Match label
     label: MatchLabel

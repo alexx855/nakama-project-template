@@ -22,9 +22,13 @@ import (
 	"math/rand"
 	"time"
 
+	"cloud.google.com/go/firestore"
+	firebase "firebase.google.com/go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
+	"google.golang.org/api/option"
 
+	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama-project-template/api"
 )
@@ -66,6 +70,7 @@ type MatchHandler struct {
 }
 
 type MatchState struct {
+	debug      bool
 	random     *rand.Rand
 	label      *MatchLabel
 	emptyTicks int
@@ -88,12 +93,39 @@ type MatchState struct {
 	// The winner of the current game.
 	winner api.Mark
 	// The winner positions.
-	winnerPositions []int32
+	// winnerPositions []int32
 	// Ticks until the next game starts, if applicable.
 	nextGameRemainingTicks int64
 }
 
 func (m *MatchHandler) MatchInit(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, params map[string]interface{}) (interface{}, int, string) {
+	// TODO: do not initialize admin and fiestore client on every tick
+	// ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		logger.Debug("error initializing app: %v\n", err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		logger.Error("err", err)
+	}
+
+	defer client.Close()
+	// logger.Debug("Firebase admin ready")
+
+	var debug bool
+	if d, ok := params["debug"]; ok {
+		if dv, ok := d.(bool); ok {
+			debug = dv
+		}
+	}
+
+	if debug {
+		logger.Info("match init, starting with debug: %v", debug)
+	}
+
 	fast, ok := params["fast"].(bool)
 	if !ok {
 		logger.Error("invalid match init parameter \"fast\"")
@@ -103,25 +135,41 @@ func (m *MatchHandler) MatchInit(ctx context.Context, logger runtime.Logger, db 
 	label := &MatchLabel{
 		Open: 1,
 	}
+
 	if fast {
 		label.Fast = 1
+		logger.Info("match init with Fast param", label.Fast)
 	}
+
 	labelJSON, err := json.Marshal(label)
 	if err != nil {
 		logger.WithField("error", err).Error("match init failed")
 		labelJSON = []byte("{}")
 	}
 
-	return &MatchState{
-		random: rand.New(rand.NewSource(time.Now().UnixNano())),
-		label:  label,
+	_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+		"playing":   false,
+		"debug":     debug,
+		"random":    rand.New(rand.NewSource(time.Now().UnixNano())),
+		"label":     label,
+		"presences": make(map[string]runtime.Presence, 2),
+		"tickRate":  tickRate,
+	}, firestore.MergeAll)
 
+	return &MatchState{
+		debug:     debug,
+		random:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		label:     label,
 		presences: make(map[string]runtime.Presence, 2),
 	}, tickRate, string(labelJSON)
 }
 
 func (m *MatchHandler) MatchJoinAttempt(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, presence runtime.Presence, metadata map[string]string) (interface{}, bool, string) {
 	s := state.(*MatchState)
+
+	if s.debug {
+		logger.Info("match join attempt username %v user_id %v session_id %v node %v with metadata %v", presence.GetUsername(), presence.GetUserId(), presence.GetSessionId(), presence.GetNodeId(), metadata)
+	}
 
 	// Check if it's a user attempting to rejoin after a disconnect.
 	if presence, ok := s.presences[presence.GetUserId()]; ok {
@@ -130,13 +178,14 @@ func (m *MatchHandler) MatchJoinAttempt(ctx context.Context, logger runtime.Logg
 			s.joinsInProgress++
 			return s, true, ""
 		} else {
+			// TODO: implement use here, like whatsapp web
 			// User attempting to join from 2 different devices at the same time.
 			return s, false, "already joined"
 		}
 	}
 
 	// Check if match is full.
-	if len(s.presences) + s.joinsInProgress >= 2 {
+	if len(s.presences)+s.joinsInProgress >= 2 {
 		return s, false, "match full"
 	}
 
@@ -148,6 +197,26 @@ func (m *MatchHandler) MatchJoinAttempt(ctx context.Context, logger runtime.Logg
 func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, presences []runtime.Presence) interface{} {
 	s := state.(*MatchState)
 	t := time.Now().UTC()
+
+	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		logger.Debug("error initializing app: %v\n", err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		logger.Error("err", err)
+	}
+
+	defer client.Close()
+	// logger.Debug("Firebase admin ready")
+
+	if s.debug {
+		for _, presence := range presences {
+			logger.Info("match join username %v user_id %v session_id %v node %v", presence.GetUsername(), presence.GetUserId(), presence.GetSessionId(), presence.GetNodeId())
+		}
+	}
 
 	for _, presence := range presences {
 		s.emptyTicks = 0
@@ -163,6 +232,7 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 			msg = &api.Update{
 				Board:    s.board,
 				Mark:     s.mark,
+				Marks:    s.marks,
 				Deadline: t.Add(time.Duration(s.deadlineRemainingTicks/tickRate) * time.Second).Unix(),
 			}
 		} else if s.board != nil && s.marks != nil && s.marks[presence.GetUserId()] > api.Mark_MARK_UNSPECIFIED {
@@ -170,10 +240,12 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 			// They likely disconnected before the game ended, and have since forfeited because they took too long to return.
 			opCode = api.OpCode_OPCODE_DONE
 			msg = &api.Done{
-				Board:           s.board,
-				Winner:          s.winner,
-				WinnerPositions: s.winnerPositions,
-				NextGameStart:   t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
+				Board:  s.board,
+				Mark:   s.mark,
+				Marks:  s.marks,
+				Winner: s.winner,
+				// WinnerPositions: s.winnerPositions,
+				NextGameStart: t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
 			}
 		}
 
@@ -200,15 +272,70 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 		}
 	}
 
+	// Update firestore match label
+	_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+		"Label":     s.label,
+		"Presences": s.presences,
+	}, firestore.MergeAll)
+
+	if err != nil {
+		return err
+	}
+
+	// Update firestore match presences
+	// ? implmenet presences as collection, just for fun and test
+	// TODO: add status and parse presences data
+	// for _, p := range s.presences {
+	// 	_, err := client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Collection("presences").Doc(p.GetUserId()).Set(ctx, p)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+
 	return s
 }
 
 func (m *MatchHandler) MatchLeave(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, presences []runtime.Presence) interface{} {
 	s := state.(*MatchState)
 
+	if s.debug {
+		for _, presence := range presences {
+			logger.Info("match leave username %v user_id %v session_id %v node %v", presence.GetUsername(), presence.GetUserId(), presence.GetSessionId(), presence.GetNodeId())
+		}
+	}
+
 	for _, presence := range presences {
 		s.presences[presence.GetUserId()] = nil
 	}
+
+	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		logger.Debug("error initializing app: %v\n", err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		logger.Error("err", err)
+	}
+
+	defer client.Close()
+	// logger.Debug("Firebase admin ready")
+
+	// Update firestore match label
+	_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+		"Label":     s.label,
+		"Presences": s.presences,
+	}, firestore.MergeAll)
+
+	// Update firestore match presences
+	// ? implmenet presences as collection, just for fun and test
+	// for _, p := range s.presences {
+	// 	_, err := client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Collection("presences").Doc(p.GetUserId()).Set(ctx, p)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 
 	return s
 }
@@ -216,11 +343,48 @@ func (m *MatchHandler) MatchLeave(ctx context.Context, logger runtime.Logger, db
 func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) interface{} {
 	s := state.(*MatchState)
 
-	if len(s.presences) + s.joinsInProgress == 0 {
+	// TODO: do not initialize admin and fiestore client on every tick
+	// TODO: learn about context.background
+	// ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		logger.Debug("error initializing app: %v\n", err)
+	}
+
+	client, err := app.Firestore(ctx)
+	if err != nil {
+		logger.Error("err", err)
+	}
+
+	defer client.Close()
+	// logger.Debug("Firebase admin ready")
+
+	// matchID := ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)
+	// logger.Debug(matchID)
+
+	if s.debug {
+		logger.Info("match loop match_id %v tick %v", ctx.Value(runtime.RUNTIME_CTX_MATCH_ID), tick)
+		logger.Info("match loop match_id %v message count %v", ctx.Value(runtime.RUNTIME_CTX_MATCH_ID), len(messages))
+	}
+
+	if len(s.presences)+s.joinsInProgress == 0 {
 		s.emptyTicks++
 		if s.emptyTicks >= maxEmptySec*tickRate {
 			// Match has been empty for too long, close it.
 			logger.Info("closing idle match")
+
+			s.label.Open = 0
+
+			// Update firestore match state
+			_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+				"Label":         s.label,
+				"NextGameStart": nil,
+				"Winner":        api.Mark_MARK_UNSPECIFIED,
+				// "Playing":       s.playing,
+				// "Deadline":      nil,
+			}, firestore.MergeAll)
+
 			return nil
 		}
 	}
@@ -270,7 +434,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 		}
 		s.mark = api.Mark_MARK_X
 		s.winner = api.Mark_MARK_UNSPECIFIED
-		s.winnerPositions = nil
+		// s.winnerPositions = nil
 		s.deadlineRemainingTicks = calculateDeadlineTicks(s.label)
 		s.nextGameRemainingTicks = 0
 
@@ -286,11 +450,29 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 		} else {
 			dispatcher.BroadcastMessage(int64(api.OpCode_OPCODE_START), buf.Bytes(), nil, nil, true)
 		}
+
+		if err != nil {
+			logger.Error("Failed adding data to firestore: %v", err)
+		}
+
+		// Update firestore match state
+		_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+			"Label":         s.label,
+			"Playing":       s.playing,
+			"Board":         s.board,
+			"Winner":        s.winner,
+			"Mark":          s.mark,
+			"Marks":         s.marks,
+			"NextGameStart": nil,
+			"Deadline":      t.Add(time.Duration(s.deadlineRemainingTicks/tickRate) * time.Second),
+		}, firestore.MergeAll)
+
 		return s
 	}
 
 	// There's a game in progress. Check for input, update match state, and send messages to clients.
 	for _, message := range messages {
+
 		switch api.OpCode(message.GetOpCode()) {
 		case api.OpCode_OPCODE_MOVE:
 			mark := s.marks[message.GetUserId()]
@@ -327,7 +509,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			s.deadlineRemainingTicks = calculateDeadlineTicks(s.label)
 
 			// Check if game is over through a winning move.
-			winCheck:
+		winCheck:
 			for _, winningPosition := range winningPositions {
 				for _, position := range winningPosition {
 					if s.board[position] != mark {
@@ -337,7 +519,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 
 				// Update state to reflect the winner, and schedule the next game.
 				s.winner = mark
-				s.winnerPositions = winningPosition
+				// s.winnerPositions = winningPosition
 				s.playing = false
 				s.deadlineRemainingTicks = 0
 				s.nextGameRemainingTicks = delayBetweenGamesSec * tickRate
@@ -353,10 +535,14 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			if tie {
 				// Update state to reflect the tie, and schedule the next game.
 				s.playing = false
+				s.winner = api.Mark_MARK_UNSPECIFIED
+				// s.winnerPositions = nil
 				s.deadlineRemainingTicks = 0
 				s.nextGameRemainingTicks = delayBetweenGamesSec * tickRate
 			}
 
+			var deadline = t.Add(time.Duration(s.deadlineRemainingTicks/tickRate) * time.Second).Unix()
+			var nextgamestart = t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix()
 			var opCode api.OpCode
 			var outgoingMsg proto.Message
 			if s.playing {
@@ -364,15 +550,18 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 				outgoingMsg = &api.Update{
 					Board:    s.board,
 					Mark:     s.mark,
-					Deadline: t.Add(time.Duration(s.deadlineRemainingTicks/tickRate) * time.Second).Unix(),
+					Marks:    s.marks,
+					Deadline: deadline,
 				}
 			} else {
 				opCode = api.OpCode_OPCODE_DONE
 				outgoingMsg = &api.Done{
-					Board:    s.board,
-					Winner:   s.winner,
-					WinnerPositions: s.winnerPositions,
-					NextGameStart: t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
+					Board:  s.board,
+					Mark:   s.mark,
+					Marks:  s.marks,
+					Winner: s.winner,
+					// WinnerPositions: s.winnerPositions,
+					NextGameStart: nextgamestart,
 				}
 			}
 
@@ -382,6 +571,22 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			} else {
 				dispatcher.BroadcastMessage(int64(opCode), buf.Bytes(), nil, nil, true)
 			}
+
+			if err != nil {
+				logger.Error("Failed adding data to firestore: %v", err)
+			}
+
+			// Update firestore match state
+			_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+				"Playing":       s.playing,
+				"Board":         s.board,
+				"Winner":        s.winner,
+				"Mark":          s.mark,
+				"Marks":         s.marks,
+				"Deadline":      deadline,
+				"NextGameStart": nextgamestart,
+			}, firestore.MergeAll)
+
 		default:
 			// No other opcodes are expected from the client, so automatically treat it as an error.
 			dispatcher.BroadcastMessage(int64(api.OpCode_OPCODE_REJECTED), nil, []runtime.Presence{message}, nil, true)
@@ -399,20 +604,34 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 				s.winner = api.Mark_MARK_O
 			case api.Mark_MARK_O:
 				s.winner = api.Mark_MARK_X
+				// ? TEST DEFAULT
+				// default
+				// 	s.winner = api.Mark_MARK_UNSPECIFIED
 			}
 			s.deadlineRemainingTicks = 0
 			s.nextGameRemainingTicks = delayBetweenGamesSec * tickRate
 
+			var nextgamestart = t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix()
 			var buf bytes.Buffer
 			if err := m.marshaler.Marshal(&buf, &api.Done{
 				Board:         s.board,
 				Winner:        s.winner,
-				NextGameStart: t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
+				NextGameStart: nextgamestart,
 			}); err != nil {
 				logger.Error("error encoding message: %v", err)
 			} else {
 				dispatcher.BroadcastMessage(int64(api.OpCode_OPCODE_DONE), buf.Bytes(), nil, nil, true)
 			}
+
+			// Update firestore match state
+			_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+				"Playing":       s.playing,
+				"Winner":        s.winner,
+				"NextGameStart": t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second),
+				"Deadline":      nil,
+				// "Board":         s.board,
+			}, firestore.MergeAll)
+
 		}
 	}
 
@@ -420,6 +639,10 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 }
 
 func (m *MatchHandler) MatchTerminate(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, graceSeconds int) interface{} {
+	if state.(*MatchState).debug {
+		logger.Info("match terminate match_id %v tick %v", ctx.Value(runtime.RUNTIME_CTX_MATCH_ID), tick)
+		logger.Info("match terminate match_id %v grace seconds %v", ctx.Value(runtime.RUNTIME_CTX_MATCH_ID), graceSeconds)
+	}
 	return state
 }
 
@@ -430,3 +653,13 @@ func calculateDeadlineTicks(l *MatchLabel) int64 {
 		return turnTimeNormalSec * tickRate
 	}
 }
+
+func beforeChannelJoin(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, envelope *rtapi.Envelope) (*rtapi.Envelope, error) {
+	logger.Info("Intercepted request to join channel '%v'", envelope.GetChannelJoin().Target)
+	return envelope, nil
+}
+
+// func afterGetAccount(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.Account) error {
+// 	logger.Info("Intercepted response to get account '%v'", in)
+// 	return nil
+// }

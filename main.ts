@@ -15,12 +15,13 @@
 const rpcIdRewards = 'rewards_js';
 const rpcIdFindMatch = 'find_match_js';
 const rpcIdListMatches = 'list_matches_js';
-
+const rpcIdGeMatch = 'get_match_js';
 
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
     initializer.registerRpc(rpcIdRewards, rpcReward);
     initializer.registerRpc(rpcIdFindMatch, rpcFindMatch);
     initializer.registerRpc(rpcIdListMatches, rpcListMatches);
+    initializer.registerRpc(rpcIdGeMatch, rpcGeMatch);
 
     initializer.registerMatch(moduleName, {
         matchInit,

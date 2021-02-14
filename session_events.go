@@ -17,9 +17,10 @@ package main
 import (
 	"context"
 	"database/sql"
+	"time"
+
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"time"
 )
 
 const (
@@ -42,6 +43,8 @@ func registerSessionEvents(db *sql.DB, nk runtime.NakamaModule, initializer runt
 // Update a user's last online timestamp when they disconnect.
 func eventSessionEndFunc(db *sql.DB) func(context.Context, runtime.Logger, *api.Event) {
 	return func(ctx context.Context, logger runtime.Logger, evt *api.Event) {
+		logger.Info("session end %v %v", ctx, evt)
+
 		userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
 		if !ok {
 			logger.Error("context did not contain user ID.")
@@ -51,15 +54,15 @@ func eventSessionEndFunc(db *sql.DB) func(context.Context, runtime.Logger, *api.
 		// Restrict the time allowed with the DB operation so we can fail fast in a stampeding herd scenario.
 		ctx2, _ := context.WithTimeout(ctx, 1*time.Second)
 		query := `
-UPDATE
-    users AS u
-SET
-    metadata
-        = u.metadata
-        || jsonb_build_object('last_online_time_unix', extract('epoch' FROM now())::BIGINT)
-WHERE
-    id = $1;
-`
+					UPDATE
+						users AS u
+					SET
+						metadata
+							= u.metadata
+							|| jsonb_build_object('last_online_time_unix', extract('epoch' FROM now())::BIGINT)
+					WHERE
+						id = $1;
+				`
 		_, err := db.ExecContext(ctx2, query, userID)
 		if err != nil && err != context.DeadlineExceeded {
 			logger.WithField("err", err).Error("db.ExecContext last online update error.")
@@ -71,6 +74,7 @@ WHERE
 // Limit the number of concurrent realtime sessions active for a user to just one.
 func eventSessionStartFunc(nk runtime.NakamaModule) func(context.Context, runtime.Logger, *api.Event) {
 	return func(ctx context.Context, logger runtime.Logger, evt *api.Event) {
+		logger.Info("session start %v %v", ctx, evt)
 		userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
 		if !ok {
 			logger.Error("context did not contain user ID.")

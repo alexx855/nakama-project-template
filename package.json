@@ -4,6 +4,7 @@
   "description": "Nakama Project Template ===",
   "main": "webpack.config.js",
   "scripts": {
+    "start:nakama": "docker-compose -f ./docker-compose.yml  up --build",
     "tsc": "npx tsc"
   },
   "repository": {

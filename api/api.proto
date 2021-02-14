@@ -63,21 +63,27 @@ message Update {
     repeated Mark board = 1;
     // Whose turn it is to play.
     Mark mark = 2;
+    // The assignments of the marks to players for this round.
+    map<string, Mark> marks = 3;
     // The deadline time by which the player must submit their move, or forfeit.
-    int64 deadline = 3;
+    int64 deadline = 4;
 }
 
 // Complete game round with winner announcement.
 message Done {
-    // The final state of the board.
+    // The current state of the board.
     repeated Mark board = 1;
+    // The final state of the board.
+    Mark mark = 2;
+    // The assignments of the marks to players for this round.
+    map<string, Mark> marks = 3;
     // The winner of the game, if any. Unspecified if it's a draw.
-    Mark winner = 2;
+    Mark winner = 4;
     // Winner board positions, if any. Used to display the row, column, or diagonal that won the game.
     // May be empty if it's a draw or the winner is by forfeit.
-    repeated int32 winner_positions = 3;
+    repeated int32 winner_positions = 5;
     // Next round start time.
-    int64 next_game_start = 4;
+    int64 next_game_start = 6;
 }
 
 // A player intends to make a move.
@@ -94,6 +100,18 @@ message RpcFindMatchRequest {
 
 // Payload for an RPC response containing match IDs the user can join.
 message RpcFindMatchResponse {
+    // One or more matches that fit the user's request.
+    repeated string match_ids = 1;
+}
+
+// Payload for an RPC request to get a match.
+message RpcGetMatchRequest {
+    // User can choose a fast or normal speed match.
+    bool fast = 1;
+}
+
+// Payload for an RPC response containing match IDs the user can join.
+message RpcGetMatchResponse {
     // One or more matches that fit the user's request.
     repeated string match_ids = 1;
 }

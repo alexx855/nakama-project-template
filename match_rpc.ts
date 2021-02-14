@@ -51,7 +51,7 @@ let rpcFindMatch: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logg
             throw error;
         }
     }
-    
+
     // try {
     //     const user =  nk.usersGetId([ctx.userId])[0];
     // } catch (error) {
@@ -83,7 +83,7 @@ let rpcListMatches: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
         logger.error('Error listing matches: %v', error);
         throw error;
     }
-    
+
     let match_ids: string[] = [];
     if (matches.length > 0) {
         // There are one or more ongoing matches the user could join.
@@ -91,5 +91,49 @@ let rpcListMatches: nkruntime.RpcFunction = function (ctx: nkruntime.Context, lo
     }
 
     let res: RpcFindMatchResponse = { match_ids };
+    return JSON.stringify(res);
+}
+
+let rpcGeMatch: nkruntime.RpcFunction = function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    if (!ctx.userId) {
+        throw Error('No user ID in context');
+    }
+
+    logger.info('rpcGeMatch() ctx.userId', ctx.userId);
+
+    if (!payload) {
+        throw Error('Expects payload.');
+    }
+
+    let state: State | null = null
+    let match: Match | null = null;
+
+    try {
+        // logger.info('payload', payload);
+        const data = JSON.parse(payload);
+        match = nk.matchGet(data.matchId);
+        state = {
+            label: JSON.parse(match.label ? match.label : ''),
+            emptyTicks: 0,
+            presences: {},
+            joinsInProgress: 0,
+            playing: false,
+            board: [],
+            marks: {},
+            mark: Mark.UNDEFINED,
+            deadlineRemainingTicks: 0,
+            winner: null,
+            winnerPositions: null,
+            nextGameRemainingTicks: 0,
+        }
+
+        // &{random:0xc001f9fef0 label:0xc000123b60 emptyTicks:0 presences:map[5bae80d3-6f42-44fb-9543-f3e1dc15b32d:0xc000c0e000] joinsInProgress:0 playing:false board:[] marks:map[] mark:0 deadlineRemainingTicks:0 winner:0 nextGameRemainingTicks:0}
+        
+    } catch (error) {
+        logger.error('Error listing matches: %v', error);
+        throw error;
+    }
+
+    let res: RpcGetMatchResponse = { match, state };
     return JSON.stringify(res);
 }

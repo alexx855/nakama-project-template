@@ -1,7 +1,7 @@
 enum Mark {
-    X = 0,
-    O = 1,
-    UNDEFINED = 2,
+    UNDEFINED = 0,
+    X = 1,
+    O = 2,
 }
 
 // The complete set of opcodes used for communication between clients and server.
@@ -74,4 +74,10 @@ interface RpcFindMatchResponse {
     // One or more matches that fit the user's request.
     match_ids: string[]
     token?: string
+}
+// Payload for an RPC response containing match IDs the user can join.
+interface RpcGetMatchResponse {
+    // One or more matches that fit the user's request.
+    match: nkruntime.Match | null
+    state: State | null
 }
