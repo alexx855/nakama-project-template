@@ -93,7 +93,7 @@ type MatchState struct {
 	// The winner of the current game.
 	winner api.Mark
 	// The winner positions.
-	// winnerPositions []int32
+	winnerPositions []int32
 	// Ticks until the next game starts, if applicable.
 	nextGameRemainingTicks int64
 }
@@ -147,13 +147,13 @@ func (m *MatchHandler) MatchInit(ctx context.Context, logger runtime.Logger, db 
 		labelJSON = []byte("{}")
 	}
 
-	_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-		"playing":   false,
-		"debug":     debug,
-		"random":    rand.New(rand.NewSource(time.Now().UnixNano())),
-		"label":     label,
-		"presences": make(map[string]runtime.Presence, 2),
-		"tickRate":  tickRate,
+	_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+		"playing": false,
+		"debug":   debug,
+		"random":  rand.New(rand.NewSource(time.Now().UnixNano())),
+		"label":   label,
+		// "Presences": make(map[string]runtime.Presence, 2),
+		"tickRate": tickRate,
 	}, firestore.MergeAll)
 
 	return &MatchState{
@@ -178,7 +178,7 @@ func (m *MatchHandler) MatchJoinAttempt(ctx context.Context, logger runtime.Logg
 			s.joinsInProgress++
 			return s, true, ""
 		} else {
-			// TODO: implement use here, like whatsapp web
+			// TODO: implement "use here", like whatsapp web
 			// User attempting to join from 2 different devices at the same time.
 			return s, false, "already joined"
 		}
@@ -240,12 +240,12 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 			// They likely disconnected before the game ended, and have since forfeited because they took too long to return.
 			opCode = api.OpCode_OPCODE_DONE
 			msg = &api.Done{
-				Board:  s.board,
-				Mark:   s.mark,
-				Marks:  s.marks,
-				Winner: s.winner,
-				// WinnerPositions: s.winnerPositions,
-				NextGameStart: t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
+				Board:           s.board,
+				Mark:            s.mark,
+				Marks:           s.marks,
+				Winner:          s.winner,
+				WinnerPositions: s.winnerPositions,
+				NextGameStart:   t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
 			}
 		}
 
@@ -273,9 +273,9 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 	}
 
 	// Update firestore match label
-	_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-		"Label":     s.label,
-		"Presences": s.presences,
+	_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+		"label":     s.label,
+		"presences": s.presences,
 	}, firestore.MergeAll)
 
 	if err != nil {
@@ -286,7 +286,7 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 	// ? implmenet presences as collection, just for fun and test
 	// TODO: add status and parse presences data
 	// for _, p := range s.presences {
-	// 	_, err := client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Collection("presences").Doc(p.GetUserId()).Set(ctx, p)
+	// 	_, err := client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Collection("presences").Doc(p.GetUserId()).Set(ctx, p)
 	// 	if err != nil {
 	// 		return err
 	// 	}
@@ -323,15 +323,15 @@ func (m *MatchHandler) MatchLeave(ctx context.Context, logger runtime.Logger, db
 	// logger.Debug("Firebase admin ready")
 
 	// Update firestore match label
-	_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-		"Label":     s.label,
-		"Presences": s.presences,
+	_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+		"label":     s.label,
+		"presences": s.presences,
 	}, firestore.MergeAll)
 
 	// Update firestore match presences
 	// ? implmenet presences as collection, just for fun and test
 	// for _, p := range s.presences {
-	// 	_, err := client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Collection("presences").Doc(p.GetUserId()).Set(ctx, p)
+	// 	_, err := client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Collection("presences").Doc(p.GetUserId()).Set(ctx, p)
 	// 	if err != nil {
 	// 		return err
 	// 	}
@@ -377,10 +377,10 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			s.label.Open = 0
 
 			// Update firestore match state
-			_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-				"Label":         s.label,
-				"NextGameStart": nil,
-				"Winner":        api.Mark_MARK_UNSPECIFIED,
+			_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+				"label":         s.label,
+				"nextGameStart": nil,
+				"winner":        api.Mark_MARK_UNSPECIFIED,
 				// "Playing":       s.playing,
 				// "Deadline":      nil,
 			}, firestore.MergeAll)
@@ -434,7 +434,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 		}
 		s.mark = api.Mark_MARK_X
 		s.winner = api.Mark_MARK_UNSPECIFIED
-		// s.winnerPositions = nil
+		s.winnerPositions = nil
 		s.deadlineRemainingTicks = calculateDeadlineTicks(s.label)
 		s.nextGameRemainingTicks = 0
 
@@ -456,15 +456,15 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 		}
 
 		// Update firestore match state
-		_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-			"Label":         s.label,
-			"Playing":       s.playing,
-			"Board":         s.board,
-			"Winner":        s.winner,
-			"Mark":          s.mark,
-			"Marks":         s.marks,
-			"NextGameStart": nil,
-			"Deadline":      t.Add(time.Duration(s.deadlineRemainingTicks/tickRate) * time.Second),
+		_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+			"label":         s.label,
+			"playing":       s.playing,
+			"board":         s.board,
+			"winner":        s.winner,
+			"mark":          s.mark,
+			"marks":         s.marks,
+			"nextGameStart": nil,
+			"deadline":      t.Add(time.Duration(s.deadlineRemainingTicks/tickRate) * time.Second).Unix(),
 		}, firestore.MergeAll)
 
 		return s
@@ -519,7 +519,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 
 				// Update state to reflect the winner, and schedule the next game.
 				s.winner = mark
-				// s.winnerPositions = winningPosition
+				s.winnerPositions = winningPosition
 				s.playing = false
 				s.deadlineRemainingTicks = 0
 				s.nextGameRemainingTicks = delayBetweenGamesSec * tickRate
@@ -532,11 +532,12 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 					break
 				}
 			}
+
 			if tie {
 				// Update state to reflect the tie, and schedule the next game.
 				s.playing = false
 				s.winner = api.Mark_MARK_UNSPECIFIED
-				// s.winnerPositions = nil
+				s.winnerPositions = nil
 				s.deadlineRemainingTicks = 0
 				s.nextGameRemainingTicks = delayBetweenGamesSec * tickRate
 			}
@@ -556,12 +557,12 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			} else {
 				opCode = api.OpCode_OPCODE_DONE
 				outgoingMsg = &api.Done{
-					Board:  s.board,
-					Mark:   s.mark,
-					Marks:  s.marks,
-					Winner: s.winner,
-					// WinnerPositions: s.winnerPositions,
-					NextGameStart: nextgamestart,
+					Board:           s.board,
+					Mark:            s.mark,
+					Marks:           s.marks,
+					Winner:          s.winner,
+					WinnerPositions: s.winnerPositions,
+					NextGameStart:   nextgamestart,
 				}
 			}
 
@@ -577,14 +578,14 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			}
 
 			// Update firestore match state
-			_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-				"Playing":       s.playing,
-				"Board":         s.board,
-				"Winner":        s.winner,
-				"Mark":          s.mark,
-				"Marks":         s.marks,
-				"Deadline":      deadline,
-				"NextGameStart": nextgamestart,
+			_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+				"playing":  s.playing,
+				"board":    s.board,
+				"winner":   s.winner,
+				"mark":     s.mark,
+				"marks":    s.marks,
+				"deadline": deadline,
+				// "nextGameStart": nextgamestart,
 			}, firestore.MergeAll)
 
 		default:
@@ -599,24 +600,26 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 		if s.deadlineRemainingTicks <= 0 {
 			// The player has run out of time to submit their move.
 			s.playing = false
+
 			switch s.mark {
 			case api.Mark_MARK_X:
 				s.winner = api.Mark_MARK_O
 			case api.Mark_MARK_O:
 				s.winner = api.Mark_MARK_X
-				// ? TEST DEFAULT
-				// default
-				// 	s.winner = api.Mark_MARK_UNSPECIFIED
 			}
+
+			s.winnerPositions = make([]int32, 3)
 			s.deadlineRemainingTicks = 0
 			s.nextGameRemainingTicks = delayBetweenGamesSec * tickRate
 
-			var nextgamestart = t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix()
 			var buf bytes.Buffer
 			if err := m.marshaler.Marshal(&buf, &api.Done{
-				Board:         s.board,
-				Winner:        s.winner,
-				NextGameStart: nextgamestart,
+				Board:           s.board,
+				Mark:            s.mark,
+				Marks:           s.marks,
+				Winner:          s.winner,
+				WinnerPositions: s.winnerPositions,
+				NextGameStart:   t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
 			}); err != nil {
 				logger.Error("error encoding message: %v", err)
 			} else {
@@ -624,11 +627,11 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			}
 
 			// Update firestore match state
-			_, err = client.Collection("match").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-				"Playing":       s.playing,
-				"Winner":        s.winner,
-				"NextGameStart": t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second),
-				"Deadline":      nil,
+			_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
+				"playing":       s.playing,
+				"winner":        s.winner,
+				"nextGameStart": t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
+				"deadline":      nil,
 				// "Board":         s.board,
 			}, firestore.MergeAll)
 

@@ -21,16 +21,16 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     initializer.registerRpc(rpcIdRewards, rpcReward);
     initializer.registerRpc(rpcIdFindMatch, rpcFindMatch);
     initializer.registerRpc(rpcIdListMatches, rpcListMatches);
-    initializer.registerRpc(rpcIdGeMatch, rpcGeMatch);
+    // initializer.registerRpc(rpcIdGeMatch, rpcGeMatch);
 
-    initializer.registerMatch(moduleName, {
-        matchInit,
-        matchJoinAttempt,
-        matchJoin,
-        matchLeave,
-        matchLoop,
-        matchTerminate,
-    });
+    // initializer.registerMatch(moduleName, {
+    //     matchInit,
+    //     matchJoinAttempt,
+    //     matchJoin,
+    //     matchLeave,
+    //     matchLoop,
+    //     matchTerminate,
+    // });
 
     logger.info('JavaScript logic loaded.');
 
