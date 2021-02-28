@@ -240,8 +240,8 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 			// They likely disconnected before the game ended, and have since forfeited because they took too long to return.
 			opCode = api.OpCode_OPCODE_DONE
 			msg = &api.Done{
-				Board:           s.board,
-				Mark:            s.mark,
+				Board: s.board,
+				// Mark:            s.mark,
 				Marks:           s.marks,
 				Winner:          s.winner,
 				WinnerPositions: s.winnerPositions,
@@ -557,8 +557,8 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 			} else {
 				opCode = api.OpCode_OPCODE_DONE
 				outgoingMsg = &api.Done{
-					Board:           s.board,
-					Mark:            s.mark,
+					Board: s.board,
+					// Mark:            s.mark,
 					Marks:           s.marks,
 					Winner:          s.winner,
 					WinnerPositions: s.winnerPositions,
@@ -614,8 +614,8 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 
 			var buf bytes.Buffer
 			if err := m.marshaler.Marshal(&buf, &api.Done{
-				Board:           s.board,
-				Mark:            s.mark,
+				Board: s.board,
+				// Mark:            s.mark,
 				Marks:           s.marks,
 				Winner:          s.winner,
 				WinnerPositions: s.winnerPositions,
@@ -628,10 +628,12 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 
 			// Update firestore match state
 			_, err = client.Collection("tictactoe").Doc(ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)).Set(ctx, map[string]interface{}{
-				"playing":       s.playing,
-				"winner":        s.winner,
-				"nextGameStart": t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
-				"deadline":      nil,
+				"playing":         s.playing,
+				"winner":          s.winner,
+				"winnerPositions": s.winnerPositions,
+				"nextGameStart":   t.Add(time.Duration(s.nextGameRemainingTicks/tickRate) * time.Second).Unix(),
+				"mark":            nil,
+				"deadline":        nil,
 				// "Board":         s.board,
 			}, firestore.MergeAll)
 

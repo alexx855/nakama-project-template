@@ -46,7 +46,8 @@ func rpcFindMatch(marshaler *jsonpb.Marshaler, unmarshaler *jsonpb.Unmarshaler) 
 			vars = map[string]string{} // No session vars so set default.
 		}
 
-		users, err := nk.UsersGetId(ctx, []string{userID})
+		facebookIDs := make([]string, 0)
+		users, err := nk.UsersGetId(ctx, []string{userID}, facebookIDs)
 		if err != nil {
 			logger.Error("UsersGetId error: %v", err)
 			return "", errInternalError
@@ -186,7 +187,8 @@ func rpcGetMatch(marshaler *jsonpb.Marshaler, unmarshaler *jsonpb.Unmarshaler) f
 			vars = map[string]string{} // No session vars so set default.
 		}
 
-		users, err := nk.UsersGetId(ctx, []string{userID})
+		facebookIDs := make([]string, 0)
+		users, err := nk.UsersGetId(ctx, []string{userID}, facebookIDs)
 		if err != nil {
 			logger.Error("UsersGetId error: %v", err)
 			return "", errInternalError

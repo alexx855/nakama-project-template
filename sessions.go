@@ -46,7 +46,8 @@ func rpcRefresh(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		vars = map[string]string{} // No session vars so set default.
 	}
 
-	users, err := nk.UsersGetId(ctx, []string{userID})
+	facebookIDs := make([]string, 0)
+	users, err := nk.UsersGetId(ctx, []string{userID}, facebookIDs)
 	if err != nil {
 		logger.Error("UsersGetId error: %v", err)
 		return "", errInternalError

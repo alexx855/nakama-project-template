@@ -164,6 +164,7 @@ let matchJoin: nkruntime.MatchJoinFunction = function (ctx: nkruntime.Context, l
             let done: DoneMessage = {
                 board: s.board,
                 winner: s.winner,
+                marks: s.marks,
                 winnerPositions: s.winnerPositions,
                 nextGameStart: t + Math.floor(s.nextGameRemainingTicks / tickRate)
             }
@@ -328,6 +329,7 @@ let matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
                     let msg: DoneMessage = {
                         board: s.board,
                         winner: s.winner,
+                        marks: s.marks,
                         winnerPositions: s.winnerPositions,
                         nextGameStart: t + Math.floor(s.nextGameRemainingTicks / tickRate),
                     }
@@ -355,6 +357,7 @@ let matchLoop: nkruntime.MatchLoopFunction = function (ctx: nkruntime.Context, l
             let msg: DoneMessage = {
                 board: s.board,
                 winner: s.winner,
+                marks: s.marks,
                 nextGameStart: t + Math.floor(s.nextGameRemainingTicks / tickRate),
                 winnerPositions: null,
             }

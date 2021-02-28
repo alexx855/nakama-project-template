@@ -73,8 +73,6 @@ message Update {
 message Done {
     // The current state of the board.
     repeated Mark board = 1;
-    // The final state of the board.
-    Mark mark = 2;
     // The assignments of the marks to players for this round.
     map<string, Mark> marks = 3;
     // The winner of the game, if any. Unspecified if it's a draw.

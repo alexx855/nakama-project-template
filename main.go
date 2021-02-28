@@ -17,11 +17,14 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
+	firebase "firebase.google.com/go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -39,16 +42,16 @@ const (
 	rpcIdGetMatch  = "get_match"
 )
 
-func SetSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
-	logger.Info("User session contains key-value pairs set the client: %v", in.GetAccount().Vars)
+// func SetSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
+// 	logger.Info("User session contains key-value pairs set the client: %v", in.GetAccount().Vars)
 
-	if in.GetAccount().Vars == nil {
-		in.GetAccount().Vars = map[string]string{}
-	}
-	in.GetAccount().Vars["key_added_in_go"] = "value_added_in_go"
+// 	if in.GetAccount().Vars == nil {
+// 		in.GetAccount().Vars = map[string]string{}
+// 	}
+// 	in.GetAccount().Vars["firebase_uid"] = "firebase_uid"
 
-	return in, nil
-}
+// 	return in, nil
+// }
 
 func AccessSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule) error {
 	vars, ok := ctx.Value(runtime.RUNTIME_CTX_VARS).(map[string]string)
@@ -59,6 +62,70 @@ func AccessSessionVars(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 
 	logger.Info("User session contains key-value pairs set by both the client and the before authentication hook: %v", vars)
 	return nil
+}
+
+func beforeAuthenticateCustom(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.AuthenticateCustomRequest) (*api.AuthenticateCustomRequest, error) {
+	customIDAuthToken := in.GetAccount().GetId()
+	// call our custom server to authenticate with the customIDAuthToken and receive a user ID back
+
+	logger.Info("customIDAuthToken", customIDAuthToken)
+
+	// TODO: get service account from env.
+	ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
+	app, err := firebase.NewApp(ctx, nil, opt)
+	if err != nil {
+		logger.Debug("error initializing app: %v\n", err)
+		return in, err
+	}
+
+	logger.Debug("Firebase admin ready")
+
+	client, err := app.Auth(ctx)
+	if err != nil {
+		logger.Error("error getting Auth client: %v\n", err)
+		return in, err
+	}
+
+	firebaseIDToken, err := client.VerifyIDToken(ctx, customIDAuthToken)
+	if err != nil {
+		// Auth token not valid or expired.
+		logger.Error("error verifying ID token: %v\n", err)
+		return in, err
+	}
+
+	logger.Debug("Verified ID token:")
+	logger.Debug(firebaseIDToken.UID)
+
+	if in.GetAccount().Vars == nil {
+		in.GetAccount().Vars = map[string]string{}
+	}
+	// in.GetAccount().Vars["firebase_uid"] = "firebase_uid"
+
+	customID := firebaseIDToken.UID
+	// Replace token with the verified custom ID so Nakama can persist it
+	in.GetAccount().Id = customID
+	// set this in the sessions Vars so Nakama can embed it in every authentication token.
+	in.GetAccount().Vars["firebase_uid"] = customID
+
+	// in.Account.Id = customID                   // Replace token with the verified custom ID so Nakama can persist it
+	// in.Account.Vars["firebase_uid"] = customID // set this in the sessions Vars so Nakama can embed it in every authentication token.
+
+	return in, nil
+}
+
+func beforeLeaderboardWrite(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, in *api.WriteLeaderboardRecordRequest) *api.WriteLeaderboardRecordRequest {
+	vars, ok := ctx.Value(runtime.RUNTIME_CTX_VARS).(map[string]string)
+	if !ok || vars["firebase_uid"] == "" {
+		logger.Info("session vars expected but missing.", runtime.NewError("session vars expected but missing", 3))
+		return nil
+	}
+
+	customID := vars["firebase_uid"]
+	// insert the session vars with the customID into each LeaderboardRecord
+	// which makes it very easy for you read later when getting/listing the records.
+	jsonBytes, _ := json.Marshal(map[string]string{"firebase_uid": customID})
+	in.Record.Metadata = string(jsonBytes)
+	return in
 }
 
 //noinspection GoUnusedExportedFunction
@@ -74,15 +141,24 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 
 	// logger.Info("Firebase admin ready", app)
 
-	if err := initializer.RegisterBeforeAuthenticateCustom(SetSessionVars); err != nil {
+	if err := initializer.RegisterBeforeAuthenticateCustom(beforeAuthenticateCustom); err != nil {
 		logger.Error("Unable to register: %v", err)
 		return err
 	}
+
+	// if err := initializer.RegisterBeforeWriteLeaderboardRecord(beforeLeaderboardWrite); err != nil {
+	// 	return err
+	// }
 
 	if err := initializer.RegisterBeforeGetAccount(AccessSessionVars); err != nil {
 		logger.Error("Unable to register: %v", err)
 		return err
 	}
+
+	// ?? implement
+	// if err := initializer.RegisterAfterGetAccount(afterGetAccount); err != nil {
+	// 	return err
+	// }
 
 	marshaler := &jsonpb.Marshaler{
 		EnumsAsInts: true,
@@ -91,15 +167,9 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		AllowUnknownFields: false,
 	}
 
-	// ? maybe this is a good hook for save firestore data in chats, after those were send to the client
 	if err := initializer.RegisterBeforeRt("ChannelJoin", beforeChannelJoin); err != nil {
 		return err
 	}
-
-	// TODO: implement
-	// if err := initializer.RegisterAfterGetAccount(afterGetAccount); err != nil {
-	// 	return err
-	// }
 
 	if err := initializer.RegisterRpc(rpcIdRefresh, rpcRefresh); err != nil {
 		return err
