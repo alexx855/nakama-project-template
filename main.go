@@ -24,7 +24,6 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
-	"google.golang.org/api/option"
 )
 
 var (
@@ -70,9 +69,7 @@ func beforeAuthenticateCustom(ctx context.Context, logger runtime.Logger, db *sq
 
 	logger.Info("customIDAuthToken", customIDAuthToken)
 
-	// TODO: get service account from env.
-	ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
+	app, err := firebase.NewApp(context.Background(), nil)
 	if err != nil {
 		logger.Debug("error initializing app: %v\n", err)
 		return in, err
@@ -132,20 +129,19 @@ func beforeLeaderboardWrite(ctx context.Context, logger runtime.Logger, db *sql.
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
 	initStart := time.Now()
 
-	// ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	// app, err := firebase.NewApp(ctx, nil, opt)
-	// if err != nil {
-	// 	logger.Info("error initializing app: %v\n", err)
-	// 	return err
-	// }
+	_, err := firebase.NewApp(context.Background(), nil)
+	if err != nil {
+		logger.Debug("error initializing app: %v\n", err)
+	}
 
-	// logger.Info("Firebase admin ready", app)
+	logger.Debug("Firebase admin ready")
 
 	if err := initializer.RegisterBeforeAuthenticateCustom(beforeAuthenticateCustom); err != nil {
 		logger.Error("Unable to register: %v", err)
 		return err
 	}
 
+	// ?? implement
 	// if err := initializer.RegisterBeforeWriteLeaderboardRecord(beforeLeaderboardWrite); err != nil {
 	// 	return err
 	// }

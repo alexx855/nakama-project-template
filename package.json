@@ -1,10 +1,9 @@
 {
   "name": "nakama-project-template",
-  "version": "1.0.0",
-  "description": "Nakama Project Template ===",
-  "main": "webpack.config.js",
+  "version": "2.0.0",
+  "description": "Medievalgods Project Template ===",
   "scripts": {
-    "start:nakama": "docker-compose -f ./docker-compose.yml  up --build",
+    "start:dev": "docker-compose -f ./docker-compose.yml up --build nakama",
     "tsc": "npx tsc"
   },
   "repository": {

@@ -219,5 +219,3 @@ node_modules
 js/
 
 # End of https://www.toptal.com/developers/gitignore/api/go,sublimetext,windows,linux,macos,intellij+all
-
-/build/*

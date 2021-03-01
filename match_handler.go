@@ -26,7 +26,6 @@ import (
 	firebase "firebase.google.com/go"
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
-	"google.golang.org/api/option"
 
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
@@ -99,10 +98,7 @@ type MatchState struct {
 }
 
 func (m *MatchHandler) MatchInit(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, params map[string]interface{}) (interface{}, int, string) {
-	// TODO: do not initialize admin and fiestore client on every tick
-	// ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
+	app, err := firebase.NewApp(context.Background(), nil)
 	if err != nil {
 		logger.Debug("error initializing app: %v\n", err)
 	}
@@ -198,8 +194,7 @@ func (m *MatchHandler) MatchJoin(ctx context.Context, logger runtime.Logger, db 
 	s := state.(*MatchState)
 	t := time.Now().UTC()
 
-	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
+	app, err := firebase.NewApp(context.Background(), nil)
 	if err != nil {
 		logger.Debug("error initializing app: %v\n", err)
 	}
@@ -308,8 +303,7 @@ func (m *MatchHandler) MatchLeave(ctx context.Context, logger runtime.Logger, db
 		s.presences[presence.GetUserId()] = nil
 	}
 
-	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
+	app, err := firebase.NewApp(context.Background(), nil)
 	if err != nil {
 		logger.Debug("error initializing app: %v\n", err)
 	}
@@ -343,11 +337,8 @@ func (m *MatchHandler) MatchLeave(ctx context.Context, logger runtime.Logger, db
 func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) interface{} {
 	s := state.(*MatchState)
 
-	// TODO: do not initialize admin and fiestore client on every tick
-	// TODO: learn about context.background
-	// ctx, opt := context.Background(), option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	opt := option.WithCredentialsFile("/nakama/data/modules/service-account.json")
-	app, err := firebase.NewApp(ctx, nil, opt)
+	// TODO: do not initialize admin sdk and fiestore client on every tick
+	app, err := firebase.NewApp(context.Background(), nil)
 	if err != nil {
 		logger.Debug("error initializing app: %v\n", err)
 	}
@@ -358,7 +349,7 @@ func (m *MatchHandler) MatchLoop(ctx context.Context, logger runtime.Logger, db 
 	}
 
 	defer client.Close()
-	// logger.Debug("Firebase admin ready")
+	logger.Debug("Firebase admin ready")
 
 	// matchID := ctx.Value(runtime.RUNTIME_CTX_MATCH_ID).(string)
 	// logger.Debug(matchID)
