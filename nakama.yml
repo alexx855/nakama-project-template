@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nakama
+  labels:
+    app: nakama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nakama
+  template:
+    metadata:
+      labels:
+        app: nakama
+    spec:
+      containers:
+        - command:
+            - /bin/sh
+            - -ecx
+            - |
+              /nakama/nakama migrate up --database.address postgres:localdb@postgres:5432/nakama && exec /nakama/nakama --config /nakama/data/local.yml --database.address postgres:localdb@postgres:5432/nakama
+          image: medievalgods/medievalgods-nakama
+          name: nakama
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1024Mi"
+              cpu: "1000m"
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: db
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: password
+            # - name: GOOGLE_APPLICATION_CREDENTIALS
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: firebase_service_account
+            #       key: password
+          ports:
+            - containerPort: 7349
+            - containerPort: 7350
+            - containerPort: 7351
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nakama-service
+spec:
+  type: NodePort
+  selector:
+    app: nakama
+  ports:
+  - port: 7349
+    targetPort: 7349
+  - port: 7350
+    targetPort: 7350
+  - port: 7351
+    targetPort: 7351

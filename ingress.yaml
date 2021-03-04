@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: traffic-router
+  labels:
+      name: traffic-router
+spec:
+  rules:
+   - http:
+      paths:
+        - path: /
+          backend:
+              serviceName: nakama
+              servicePort: 7351
+        - path: /nk
+          backend:
+              serviceName: nakama
+              servicePort: 7350

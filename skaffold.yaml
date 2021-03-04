@@ -1,0 +1,13 @@
+apiVersion: skaffold/v2beta12
+kind: Config
+metadata:
+  name: medievalgods-nakama
+build:
+  artifacts:
+  - image: medievalgods/medievalgods-nakama
+    docker:
+      dockerfile: Dockerfile
+deploy:
+  kubectl:
+    manifests:
+    - nakama.yml
